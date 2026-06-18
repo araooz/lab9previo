@@ -88,6 +88,50 @@ IndexExp::IndexExp(const std::string &name, Exp *index)
     : name(name), index(index) {}
 
 // =============================================================================
+// StructExp
+// =============================================================================
+
+StructExp::StructExp(const std::string &type) : structType(type) {}
+
+StructExp::~StructExp() {
+  for (auto v : values)
+    delete v;
+}
+
+// =============================================================================
+// FieldAccessExp
+// =============================================================================
+
+FieldAccessExp::FieldAccessExp(const std::string &name, const std::string &field)
+    : name(name), field(field), fieldIndex(-1) {}
+
+FieldAccessExp::~FieldAccessExp() {}
+
+// =============================================================================
+// MatrixSizeExp
+// =============================================================================
+
+MatrixSizeExp::MatrixSizeExp(const std::string &t, Exp *r, Exp *c)
+    : type(t), rows(r), cols(c) {}
+
+MatrixSizeExp::~MatrixSizeExp() {
+  delete rows;
+  delete cols;
+}
+
+// =============================================================================
+// MatrixIndexExp
+// =============================================================================
+
+MatrixIndexExp::MatrixIndexExp(const std::string &name, Exp *row, Exp *col)
+    : name(name), row(row), col(col), totalCols(nullptr) {}
+
+MatrixIndexExp::~MatrixIndexExp() {
+  delete row;
+  delete col;
+}
+
+// =============================================================================
 // Stm
 // =============================================================================
 

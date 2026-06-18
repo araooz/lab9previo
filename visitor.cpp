@@ -35,6 +35,12 @@ int SwitchStm::accept(Visitor *v) { return v->visit(this); }
 int UnaryExp::accept(Visitor *v) { return v->visit(this); }
 int IndexExp::accept(Visitor *v) { return v->visit(this); }
 int IndexExp ::computeAddress(Visitor *v) { return v->computeAddress(this); }
+int StructExp::accept(Visitor *v) { return v->visit(this); }
+int FieldAccessExp::accept(Visitor *v) { return v->visit(this); }
+int FieldAccessExp::computeAddress(Visitor *v) { return v->computeAddress(this); }
+int MatrixSizeExp::accept(Visitor *v) { return v->visit(this); }
+int MatrixIndexExp::accept(Visitor *v) { return v->visit(this); }
+int MatrixIndexExp::computeAddress(Visitor *v) { return v->computeAddress(this); }
 
 // =============================================================================
 // Implementación de accept()
@@ -295,6 +301,24 @@ int TypeCheckerVisitor::visit(SwitchStm *stm) {
   return 0;
 }
 
+int TypeCheckerVisitor::visit(StructExp *exp) {
+  for (auto v : exp->values)
+    v->accept(this);
+  return 0;
+}
+
+int TypeCheckerVisitor::visit(FieldAccessExp *exp) { return 0; }
+int TypeCheckerVisitor::computeAddress(FieldAccessExp *exp) { return 0; }
+
+int TypeCheckerVisitor::visit(MatrixSizeExp *exp) {
+  exp->rows->accept(this);
+  exp->cols->accept(this);
+  return 0;
+}
+
+int TypeCheckerVisitor::visit(MatrixIndexExp *exp) { return 0; }
+int TypeCheckerVisitor::computeAddress(MatrixIndexExp *exp) { return 0; }
+
 // =============================================================================
 // GenCodeVisitor — Generación de código ensamblador x86-64 (AT&T syntax)
 // =============================================================================
@@ -350,6 +374,15 @@ int GenCodeVisitor::visit(Program *program) {
 // -----------------------------------------------------------------------------
 
 int GenCodeVisitor::visit(VarDec *stm) {
+  // Registrar definición de estructura si tiene campos
+  if (!stm->structFields.empty()) {
+    structDefs[stm->type] = stm->structFields;
+    // Mapear la variable a su tipo de struct
+    for (auto &var : stm->vars) {
+      varStructType[var] = stm->type;
+    }
+  }
+
   for (auto &var : stm->vars) {
     if (!entornoFuncion) {
       memoriaGlobal[var] = true;
@@ -815,5 +848,210 @@ int GenCodeVisitor::visit(SwitchStm *stm) {
 
   out << "endswitch_" << lbl << ":\n";
 
+  return 0;
+}
+
+// -----------------------------------------------------------------------------
+// visit(StructExp) — crea un struct en el heap con malloc
+// Cada campo ocupa 8 bytes, layout contiguo.
+// Resultado: puntero en %rax
+// -----------------------------------------------------------------------------
+
+int GenCodeVisitor::visit(StructExp *exp) {
+  int n = exp->values.size();
+  // malloc(n * 8)
+  out << "  movq $" << (n * 8) << ", %rdi\n"
+      << "  call malloc@PLT\n"
+      << "  pushq %rax\n";
+  for (int i = 0; i < n; ++i) {
+    out << "  pushq %rax\n";
+    exp->values[i]->accept(this);
+    out << "  movq %rax, %rcx\n";
+    out << "  popq %rax\n";
+    out << "  movq %rcx, " << (i * 8) << "(%rax)\n";
+  }
+  out << "  popq %rax\n";
+  return 0;
+}
+
+// -----------------------------------------------------------------------------
+// visit(FieldAccessExp) — lee un campo de una estructura
+// La estructura es un puntero a memoria heap; campo = offset * 8
+// -----------------------------------------------------------------------------
+
+int GenCodeVisitor::visit(FieldAccessExp *exp) {
+  // Resolver el índice del campo a partir del nombre
+  int fieldIdx = -1;
+  if (varStructType.count(exp->name)) {
+    std::string stype = varStructType[exp->name];
+    if (structDefs.count(stype)) {
+      auto &fields = structDefs[stype];
+      for (int i = 0; i < (int)fields.size(); ++i) {
+        if (fields[i] == exp->field) {
+          fieldIdx = i;
+          break;
+        }
+      }
+    }
+  }
+  if (fieldIdx < 0) {
+    std::cerr << "Error: campo '" << exp->field << "' no encontrado en la estructura de '" << exp->name << "'\n";
+    exit(1);
+  }
+
+  // Cargar el puntero al struct
+  if (memoriaGlobal.count(exp->name))
+    out << "  movq " << exp->name << "(%rip), %rax\n";
+  else
+    out << "  movq " << memoria[exp->name] << "(%rbp), %rax\n";
+  // Acceder al campo por su índice
+  out << "  movq " << (fieldIdx * 8) << "(%rax), %rax\n";
+  return 0;
+}
+
+// -----------------------------------------------------------------------------
+// computeAddress(FieldAccessExp) — almacena %rax en el campo de un struct
+// -----------------------------------------------------------------------------
+
+int GenCodeVisitor::computeAddress(FieldAccessExp *exp) {
+  // Resolver el índice del campo
+  int fieldIdx = -1;
+  if (varStructType.count(exp->name)) {
+    std::string stype = varStructType[exp->name];
+    if (structDefs.count(stype)) {
+      auto &fields = structDefs[stype];
+      for (int i = 0; i < (int)fields.size(); ++i) {
+        if (fields[i] == exp->field) {
+          fieldIdx = i;
+          break;
+        }
+      }
+    }
+  }
+  if (fieldIdx < 0) {
+    std::cerr << "Error: campo '" << exp->field << "' no encontrado en la estructura de '" << exp->name << "'\n";
+    exit(1);
+  }
+
+  out << "  pushq %rax\n"; // guardar el valor a asignar
+  // Cargar el puntero al struct
+  if (memoriaGlobal.count(exp->name))
+    out << "  movq " << exp->name << "(%rip), %rbx\n";
+  else
+    out << "  movq " << memoria[exp->name] << "(%rbp), %rbx\n";
+  out << "  popq %rax\n";
+  out << "  movq %rax, " << (fieldIdx * 8) << "(%rbx)\n";
+  return 0;
+}
+
+// -----------------------------------------------------------------------------
+// visit(MatrixSizeExp) — crea una matriz en el heap
+// Layout: [cols, data[0], data[1], ...]
+// El primer quad almacena el número de columnas para indexación
+// Tamaño total: (rows*cols + 1) * 8 bytes
+// -----------------------------------------------------------------------------
+
+int GenCodeVisitor::visit(MatrixSizeExp *exp) {
+  // Evaluar cols primero, guardar en stack
+  exp->cols->accept(this);
+  out << "  pushq %rax\n"; // stack: [cols]
+
+  // Evaluar rows
+  exp->rows->accept(this);
+  out << "  popq %rcx\n"; // %rcx = cols, %rax = rows
+  out << "  pushq %rcx\n"; // guardar cols para después
+
+  // Calcular rows * cols
+  out << "  imulq %rcx, %rax\n";
+  // Sumar 1 para el header (donde guardamos cols)
+  out << "  addq $1, %rax\n";
+  // * 8 bytes
+  out << "  salq $3, %rax\n";
+  out << "  movq %rax, %rdi\n";
+  out << "  call malloc@PLT\n";
+
+  // Guardar cols en el header: matrix[0] = cols
+  out << "  popq %rcx\n"; // recuperar cols
+  out << "  movq %rcx, (%rax)\n";
+  // Retornar puntero en %rax
+  return 0;
+}
+
+// -----------------------------------------------------------------------------
+// visit(MatrixIndexExp) — lee un elemento de una matriz
+// offset = (row * cols + col + 1) * 8
+// cols se lee del header matrix[0]
+// -----------------------------------------------------------------------------
+
+int GenCodeVisitor::visit(MatrixIndexExp *exp) {
+  // 1) Cargar el puntero base del array
+  if (memoriaGlobal.count(exp->name))
+    out << "  movq " << exp->name << "(%rip), %rbx\n";
+  else
+    out << "  movq " << memoria[exp->name] << "(%rbp), %rbx\n";
+  out << "  pushq %rbx\n"; // guardar base
+
+  // 2) Evaluar row
+  exp->row->accept(this);
+  out << "  pushq %rax\n"; // guardar row
+
+  // 3) Evaluar col
+  exp->col->accept(this);
+  out << "  movq %rax, %rcx\n"; // %rcx = col
+
+  // 4) Recuperar row y base
+  out << "  popq %rax\n";  // %rax = row
+  out << "  popq %rbx\n";  // %rbx = base
+
+  // 5) Leer cols del header
+  out << "  movq (%rbx), %rdx\n"; // %rdx = cols
+
+  // 6) offset = row * cols + col + 1
+  out << "  imulq %rdx, %rax\n"; // rax = row * cols
+  out << "  addq %rcx, %rax\n";  // rax = row * cols + col
+  out << "  addq $1, %rax\n";    // rax = row * cols + col + 1 (skip header)
+
+  // 7) Leer el elemento
+  out << "  movq (%rbx, %rax, 8), %rax\n";
+  return 0;
+}
+
+// -----------------------------------------------------------------------------
+// computeAddress(MatrixIndexExp) — almacena %rax en un elemento de la matriz
+// -----------------------------------------------------------------------------
+
+int GenCodeVisitor::computeAddress(MatrixIndexExp *exp) {
+  out << "  pushq %rax\n"; // guardar valor a asignar
+
+  // 1) Cargar base
+  if (memoriaGlobal.count(exp->name))
+    out << "  movq " << exp->name << "(%rip), %rbx\n";
+  else
+    out << "  movq " << memoria[exp->name] << "(%rbp), %rbx\n";
+  out << "  pushq %rbx\n"; // guardar base
+
+  // 2) Evaluar row
+  exp->row->accept(this);
+  out << "  pushq %rax\n"; // guardar row
+
+  // 3) Evaluar col
+  exp->col->accept(this);
+  out << "  movq %rax, %rcx\n"; // %rcx = col
+
+  // 4) Recuperar
+  out << "  popq %rax\n";  // %rax = row
+  out << "  popq %rbx\n";  // %rbx = base
+
+  // 5) Leer cols del header
+  out << "  movq (%rbx), %rdx\n"; // %rdx = cols
+
+  // 6) offset = row * cols + col + 1
+  out << "  imulq %rdx, %rax\n";
+  out << "  addq %rcx, %rax\n";
+  out << "  addq $1, %rax\n";
+
+  // 7) Escribir el valor
+  out << "  popq %rcx\n"; // recuperar el valor a asignar
+  out << "  movq %rcx, (%rbx, %rax, 8)\n";
   return 0;
 }

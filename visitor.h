@@ -45,7 +45,10 @@ class VarDec;
 class WhileStm;
 class ExpListSize;
 class ExpListVals;
-class WhileStm;
+class StructExp;
+class FieldAccessExp;
+class MatrixSizeExp;
+class MatrixIndexExp;
 
 // =============================================================================
 // Clase base abstracta Visitor
@@ -75,6 +78,12 @@ public:
   virtual int visit(FcallExp *fc) = 0;
   virtual int visit(ReturnStm *r) = 0;
   virtual int visit(FunDec *fd) = 0;
+  virtual int visit(StructExp *exp) = 0;
+  virtual int visit(FieldAccessExp *exp) = 0;
+  virtual int computeAddress(FieldAccessExp *exp) = 0;
+  virtual int visit(MatrixSizeExp *exp) = 0;
+  virtual int visit(MatrixIndexExp *exp) = 0;
+  virtual int computeAddress(MatrixIndexExp *exp) = 0;
 };
 
 // =============================================================================
@@ -125,6 +134,12 @@ public:
   int visit(FcallExp *fc) override;
   int visit(ReturnStm *r) override;
   int visit(FunDec *fd) override;
+  int visit(StructExp *exp) override;
+  int visit(FieldAccessExp *exp) override;
+  int computeAddress(FieldAccessExp *exp) override;
+  int visit(MatrixSizeExp *exp) override;
+  int visit(MatrixIndexExp *exp) override;
+  int computeAddress(MatrixIndexExp *exp) override;
 };
 
 // =============================================================================
@@ -154,6 +169,12 @@ public:
                                  // dentro del ciclo actual
   std::string nombreFuncion;     // Nombre de la función actual
 
+  // Mapa tipo_struct → lista ordenada de nombres de campos
+  std::unordered_map<std::string, std::vector<std::string>> structDefs;
+
+  // Mapa variable → nombre del tipo de struct al que pertenece
+  std::unordered_map<std::string, std::string> varStructType;
+
   GenCodeVisitor(std::ostream &out) : out(out) {}
 
   // Punto de entrada de la generación
@@ -182,6 +203,12 @@ public:
   int visit(FcallExp *fc) override;
   int visit(ReturnStm *r) override;
   int visit(FunDec *fd) override;
+  int visit(StructExp *exp) override;
+  int visit(FieldAccessExp *exp) override;
+  int computeAddress(FieldAccessExp *exp) override;
+  int visit(MatrixSizeExp *exp) override;
+  int visit(MatrixIndexExp *exp) override;
+  int computeAddress(MatrixIndexExp *exp) override;
 };
 
 #endif // VISITOR_H

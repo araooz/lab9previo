@@ -106,8 +106,17 @@ Token *Scanner::nextToken() {
       return new Token(Token::NEW, input, first, current - first);
     if (lexema == "return")
       return new Token(Token::RETURN, input, first, current - first);
+    if (lexema == "struct")
+      return new Token(Token::STRUCT, input, first, current - first);
 
     return new Token(Token::ID, input, first, current - first);
+  }
+
+  // ---- Operadores y delimitadores ----
+  // ---- Punto para acceso a campos de estructuras ----
+  if (c == '.') {
+    current++;
+    return new Token(Token::DOT, c);
   }
 
   // ---- Operadores y delimitadores ----

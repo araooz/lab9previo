@@ -125,13 +125,32 @@ Program *Parser::parseProgram() {
 VarDec *Parser::parseVarDec() {
   expect(Token::VAR);
 
-  // Tipo
+  VarDec *vd = new VarDec();
+
+  // Verificar si es una declaración de estructura: var struct Tipo varName campo1 campo2 ...
+  if (match(Token::STRUCT)) {
+    // Tipo de la estructura
+    if (!match(Token::ID))
+      error("nombre de tipo de estructura después de 'struct'");
+    vd->type = previous->text;
+
+    // Nombre de la variable
+    if (!match(Token::ID))
+      error("nombre de variable después del tipo '" + vd->type + "'");
+    vd->vars.push_back(previous->text);
+
+    // Campos de la estructura (IDs sin comas)
+    while (check(Token::ID)) {
+      match(Token::ID);
+      vd->structFields.push_back(previous->text);
+    }
+    return vd;
+  }
+
+  // Tipo normal
   if (!match(Token::ID))
     error("nombre de tipo después de 'var'");
-  std::string type = previous->text;
-
-  VarDec *vd = new VarDec();
-  vd->type = type;
+  vd->type = previous->text;
 
   if (!match(Token::ID))
     error("nombre de variable después del tipo '" + vd->type + "'");
@@ -257,16 +276,31 @@ Body *Parser::parseBody() {
 // Stm → AssignStm | PrintStm | ReturnStm | IfStm | WhileStm
 // -----------------------------------------------------------------------------
 Stm *Parser::parseStm() {
-  // ---- Asignación: ID '=' Exp or ID[CExp] '=' EXP ----
+  // ---- Asignación: ID '=' Exp or ID[CExp] '=' EXP or ID.campo '=' EXP or
+  // ID[CE][CE] '=' EXP ----
   if (match(Token::ID)) {
     std::string variable = previous->text;
 
-    // Check if ID[CE]
     Exp *var = nullptr;
+    // Check if ID[CE] or ID[CE][CE] (matrix)
     if (match(Token::LBRACKET)) {
-      Exp *idx = parseCE();
+      Exp *idx1 = parseCE();
       expect(Token::RBRACKET);
-      var = new IndexExp(variable, idx);
+      // Check for second dimension: ID[CE][CE] (matrix access)
+      if (match(Token::LBRACKET)) {
+        Exp *idx2 = parseCE();
+        expect(Token::RBRACKET);
+        var = new MatrixIndexExp(variable, idx1, idx2);
+      } else {
+        var = new IndexExp(variable, idx1);
+      }
+    }
+    // Check if ID.campo (struct field access)
+    else if (match(Token::DOT)) {
+      if (!match(Token::ID))
+        error("nombre de campo después de '.'");
+      std::string campo = previous->text;
+      var = new FieldAccessExp(variable, campo);
     } else {
       var = new IdExp(variable);
     }
@@ -502,28 +536,34 @@ Exp *Parser::parseF() {
   if (match(Token::NEW)) {
     match(Token::ID);
     std::string type = previous->text;
-    // a.1) id = new ID[CE]
+    // a.1) new ID[CE] o new ID[CE][CE] (matriz)
     if (match(Token::LBRACKET)) {
-      Exp *size = parseCE();
-      ExpListSize *e = new ExpListSize(type, size);
-      match(Token::RBRACKET);
-      return e;
+      Exp *dim1 = parseCE();
+      expect(Token::RBRACKET);
+      // Check for second dimension: new ID[CE][CE] (matrix)
+      if (match(Token::LBRACKET)) {
+        Exp *dim2 = parseCE();
+        expect(Token::RBRACKET);
+        return new MatrixSizeExp(type, dim1, dim2);
+      }
+      // Single dimension: new ID[CE] (list)
+      return new ExpListSize(type, dim1);
     }
-    // a.2) id = new ID{CE (, CE)*}
+    // a.2) new ID{CE (, CE)*} — lista con valores o estructura
     else if (match(Token::LBRACE)) {
-      match(Token::ID);
-      std::string type = previous->text;
-      ExpListVals *e = new ExpListVals(type);
-      e->values.push_back(parseCE());
-      while (match(Token::COMA))
+      // Creación de estructura: new NombreStruct { val1, val2, ... }
+      StructExp *e = new StructExp(type);
+      if (!check(Token::RBRACE)) {
         e->values.push_back(parseCE());
-
-      match(Token::RBRACE);
+        while (match(Token::COMA))
+          e->values.push_back(parseCE());
+      }
+      expect(Token::RBRACE);
       return e;
     }
   }
 
-  // Identificador o llamada a función
+  // Identificador, llamada a función, acceso a lista/matriz, o campo de struct
   if (match(Token::ID)) {
     std::string nom = previous->text;
     if (check(Token::LPAREN)) {
@@ -539,12 +579,24 @@ Exp *Parser::parseF() {
       expect(Token::RPAREN);
       return fcall;
     }
-    // ID[CE]
+    // ID[CE] o ID[CE][CE]
     else if (match(Token::LBRACKET)) {
-      Exp *t = parseCE();
+      Exp *idx1 = parseCE();
       expect(Token::RBRACKET);
-      IndexExp *index = new IndexExp(nom, t);
-      return index;
+      // Check for second dimension: ID[CE][CE] (matrix access)
+      if (match(Token::LBRACKET)) {
+        Exp *idx2 = parseCE();
+        expect(Token::RBRACKET);
+        return new MatrixIndexExp(nom, idx1, idx2);
+      }
+      return new IndexExp(nom, idx1);
+    }
+    // ID.campo (acceso a campo de estructura)
+    else if (match(Token::DOT)) {
+      if (!match(Token::ID))
+        error("nombre de campo después de '.'");
+      std::string campo = previous->text;
+      return new FieldAccessExp(nom, campo);
     }
     return new IdExp(nom);
   }

@@ -77,6 +77,10 @@ public:
     NEW,       // new
     ENDSWITCH, // endswitch
 
+    // Estructuras
+    DOT,       // .
+    STRUCT,    // struct
+
     // Declaraciones
     VAR, // var
 

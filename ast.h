@@ -7,12 +7,16 @@
 // Jerarquía de nodos:
 //
 //   Exp (abstracta)
-//     ├── NumberExp   — literal entero
-//     ├── IdExp       — variable
-//     ├── BinaryExp   — operación binaria (+, -, *, /, **, <)
-//     ├── ListSize    — lista inicializada con un tamanio
-//     ├── ListVals    — lista inicializada con valores iniciales
-//     └── FcallExp    — llamada a función
+//     ├── NumberExp      — literal entero
+//     ├── IdExp          — variable
+//     ├── BinaryExp      — operación binaria (+, -, *, /, **, <)
+//     ├── ListSize       — lista inicializada con un tamanio
+//     ├── ListVals       — lista inicializada con valores iniciales
+//     ├── FcallExp       — llamada a función
+//     ├── StructExp      — creación de estructura: new NombreStruct {vals}
+//     ├── FieldAccessExp — acceso a campo: exp.campo
+//     ├── MatrixSizeExp  — creación de matriz: new int[filas][cols]
+//     └── MatrixIndexExp — acceso a matriz: ID[fila][col]
 //
 //   Stm (abstracta)
 //     ├── AssignStm   — asignación: ID = Exp
@@ -152,6 +156,52 @@ public:
   ~IndexExp();
 };
 
+// ---- Creación de estructura: new NombreStruct { val1, val2, ... } ----
+class StructExp : public Exp {
+public:
+  std::string structType; // Nombre del tipo de estructura
+  std::vector<Exp *> values; // Valores iniciales de los campos
+  StructExp(const std::string &type);
+  int accept(Visitor *visitor) override;
+  ~StructExp();
+};
+
+// ---- Acceso a campo de estructura: exp.campo ----
+class FieldAccessExp : public Exp {
+public:
+  std::string name;   // Nombre de la variable struct
+  std::string field;  // Nombre del campo
+  int fieldIndex;     // Índice del campo en la estructura (resuelto por TypeChecker)
+  FieldAccessExp(const std::string &name, const std::string &field);
+  int accept(Visitor *visitor) override;
+  int computeAddress(Visitor *visitor) override;
+  ~FieldAccessExp();
+};
+
+// ---- Creación de matriz: new int[filas][cols] ----
+class MatrixSizeExp : public Exp {
+public:
+  std::string type; // Tipo de elementos
+  Exp *rows;        // Número de filas
+  Exp *cols;        // Número de columnas
+  MatrixSizeExp(const std::string &t, Exp *r, Exp *c);
+  int accept(Visitor *visitor) override;
+  ~MatrixSizeExp();
+};
+
+// ---- Acceso a elemento de matriz: ID[fila][col] ----
+class MatrixIndexExp : public Exp {
+public:
+  std::string name;   // Nombre de la variable matriz
+  Exp *row;           // Índice de fila
+  Exp *col;           // Índice de columna
+  Exp *totalCols;     // Número total de columnas (para cálculo del offset)
+  MatrixIndexExp(const std::string &name, Exp *row, Exp *col);
+  int accept(Visitor *visitor) override;
+  int computeAddress(Visitor *visitor) override;
+  ~MatrixIndexExp();
+};
+
 // =============================================================================
 // Sentencias
 // =============================================================================
@@ -254,10 +304,12 @@ public:
 // =============================================================================
 
 // ---- Declaración de variables: var tipo var1, var2, ... ----
+// Para structs: var TipoStruct varName campo1, campo2, ...
 class VarDec {
 public:
   std::string type;
   std::list<std::string> vars;
+  std::vector<std::string> structFields; // Campos de estructura (vacío si no es struct)
   VarDec();
   int accept(Visitor *visitor);
   ~VarDec();

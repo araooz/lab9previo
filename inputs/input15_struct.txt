@@ -1,0 +1,9 @@
+fun int main()
+    var struct Punto p x y;
+    p = new Punto {10, 20};
+    print(p.x);
+    print(p.y);
+    p.x = 99;
+    print(p.x);
+    return(0)
+endfun

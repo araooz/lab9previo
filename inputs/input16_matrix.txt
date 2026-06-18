@@ -1,0 +1,17 @@
+fun int main()
+    var matrix m;
+    m = new int[2][3];
+    m[0][0] = 1;
+    m[0][1] = 2;
+    m[0][2] = 3;
+    m[1][0] = 4;
+    m[1][1] = 5;
+    m[1][2] = 6;
+    print(m[0][0]);
+    print(m[0][1]);
+    print(m[0][2]);
+    print(m[1][0]);
+    print(m[1][1]);
+    print(m[1][2]);
+    return(0)
+endfun
