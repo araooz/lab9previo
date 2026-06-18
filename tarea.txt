@@ -26,3 +26,7 @@ T          ::= F [** F]
 F          ::= num true | false | !F | (CE) | ID | ID(Args) | ID[CE]
            ::= new int[CE] | new int{Args}
 Args       ::= epsilon | CE {, CE}*
+
+Ademas se debe implementar 
+- Estructuras 
+- Matrices 
