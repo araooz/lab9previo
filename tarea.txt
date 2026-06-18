@@ -1,0 +1,28 @@
+Laboratorio 9
+
+--- Gramática ---
+A continuación se presenta la gramática del lenguaje desarrollada para el compilador.
+Esta define las reglas de formación válidas para programas, declaraciones, sentencias y expresiones, permitiendo especificar formalmente la sintaxis del lenguaje.
+
+Program    ::= Var Dec FunDec
+VarDec     ::= var id id {, id}*
+FunDec     ::= fun id id (Params) Body endfun
+Params     ::= {id id}*
+Body       ::= VarDec* Stm {; Stm}*
+Stm        ::= id {[CE]} = CE
+           ::= print(CE)
+           ::= return(CE)
+           ::= if CE then Body [else Body] endif
+           ::= while CE do Body endwhile
+           ::= do Body dowhile CE enddo
+           ::= break
+           ::= switch CE {case num Stm*}+ [default Stm*] endswitch
+CE         ::= Logical And {|| Logical And}*
+LogicalAnd ::= RelExp {& RelExp}*
+RelExp     ::= BE { (< | > | <= | >= | == | !=) BE }*
+BE         ::= E { (+ | -) E }*
+E          ::= T { (* | /) T }*
+T          ::= F [** F]
+F          ::= num true | false | !F | (CE) | ID | ID(Args) | ID[CE]
+           ::= new int[CE] | new int{Args}
+Args       ::= epsilon | CE {, CE}*
