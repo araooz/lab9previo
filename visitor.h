@@ -49,6 +49,8 @@ class StructExp;
 class FieldAccessExp;
 class MatrixSizeExp;
 class MatrixIndexExp;
+class MatrixValsExp;
+class StructDec;
 
 // =============================================================================
 // Clase base abstracta Visitor
@@ -84,6 +86,8 @@ public:
   virtual int visit(MatrixSizeExp *exp) = 0;
   virtual int visit(MatrixIndexExp *exp) = 0;
   virtual int computeAddress(MatrixIndexExp *exp) = 0;
+  virtual int visit(MatrixValsExp *exp) = 0;
+  virtual int visit(StructDec *sd) = 0;
 };
 
 // =============================================================================
@@ -140,6 +144,8 @@ public:
   int visit(MatrixSizeExp *exp) override;
   int visit(MatrixIndexExp *exp) override;
   int computeAddress(MatrixIndexExp *exp) override;
+  int visit(MatrixValsExp *exp) override;
+  int visit(StructDec *sd) override;
 };
 
 // =============================================================================
@@ -209,6 +215,11 @@ public:
   int visit(MatrixSizeExp *exp) override;
   int visit(MatrixIndexExp *exp) override;
   int computeAddress(MatrixIndexExp *exp) override;
+  int visit(MatrixValsExp *exp) override;
+  int visit(StructDec *sd) override;
+
+  // Mapa variable_matriz -> número de columnas (estático)
+  std::unordered_map<std::string, int> varMatrixCols;
 };
 
 #endif // VISITOR_H

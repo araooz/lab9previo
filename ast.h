@@ -202,6 +202,28 @@ public:
   ~MatrixIndexExp();
 };
 
+// ---- Creación de matriz con valores: new int[filas][cols]{val1, val2, ...} ----
+class MatrixValsExp : public Exp {
+public:
+  std::string type;
+  Exp *rows;
+  Exp *cols;
+  std::vector<Exp *> values;
+  MatrixValsExp(const std::string &t, Exp *r, Exp *c);
+  int accept(Visitor *visitor) override;
+  ~MatrixValsExp();
+};
+
+// ---- Definición de estructura a nivel de programa ----
+class StructDec {
+public:
+  std::string name;                     // Nombre del tipo
+  std::vector<std::string> fieldNames;  // Nombres de los campos
+  StructDec(const std::string &name) : name(name) {}
+  int accept(Visitor *visitor);
+  ~StructDec() = default;
+};
+
 // =============================================================================
 // Sentencias
 // =============================================================================
@@ -338,9 +360,10 @@ public:
   ~FunDec() = default;
 };
 
-// ---- Programa: VarDec* FunDec* ----
+// ---- Programa: StructDec* VarDec* FunDec* ----
 class Program {
 public:
+  std::list<StructDec *> sdlist;  // Definiciones de struct
   std::list<VarDec *> vdlist;
   std::list<FunDec *> fdlist;
   Program() = default;

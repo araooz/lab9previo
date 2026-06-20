@@ -92,6 +92,28 @@ void Parser::expect(Token::Type ttype) {
 Program *Parser::parseProgram() {
   Program *p = new Program();
 
+  // Definiciones de struct a nivel de programa
+  while (check(Token::STRUCT)) {
+    expect(Token::STRUCT);
+    if (!match(Token::ID))
+      error("nombre de tipo de estructura después de 'struct'");
+    StructDec *sd = new StructDec(previous->text);
+    expect(Token::LBRACE);
+    while (check(Token::VAR)) {
+      expect(Token::VAR);
+      if (!match(Token::ID))
+        error("tipo de campo en definición de struct");
+      // skip type name
+      if (!match(Token::ID))
+        error("nombre de campo en definición de struct");
+      sd->fieldNames.push_back(previous->text);
+      match(Token::SEMICOL); // optional semicolon between fields
+    }
+    expect(Token::RBRACE);
+    match(Token::SEMICOL); // optional semicolon after struct def
+    p->sdlist.push_back(sd);
+  }
+
   // Declaraciones globales de variables
   while (check(Token::VAR)) {
     p->vdlist.push_back(parseVarDec());
@@ -544,6 +566,17 @@ Exp *Parser::parseF() {
       if (match(Token::LBRACKET)) {
         Exp *dim2 = parseCE();
         expect(Token::RBRACKET);
+        // Check for init values: new ID[CE][CE]{vals}
+        if (match(Token::LBRACE)) {
+          MatrixValsExp *mv = new MatrixValsExp(type, dim1, dim2);
+          if (!check(Token::RBRACE)) {
+            mv->values.push_back(parseCE());
+            while (match(Token::COMA))
+              mv->values.push_back(parseCE());
+          }
+          expect(Token::RBRACE);
+          return mv;
+        }
         return new MatrixSizeExp(type, dim1, dim2);
       }
       // Single dimension: new ID[CE] (list)
@@ -551,15 +584,26 @@ Exp *Parser::parseF() {
     }
     // a.2) new ID{CE (, CE)*} — lista con valores o estructura
     else if (match(Token::LBRACE)) {
-      // Creación de estructura: new NombreStruct { val1, val2, ... }
-      StructExp *e = new StructExp(type);
-      if (!check(Token::RBRACE)) {
-        e->values.push_back(parseCE());
-        while (match(Token::COMA))
+      if (type == "int") {
+        ExpListVals *e = new ExpListVals(type);
+        if (!check(Token::RBRACE)) {
           e->values.push_back(parseCE());
+          while (match(Token::COMA))
+            e->values.push_back(parseCE());
+        }
+        expect(Token::RBRACE);
+        return e;
+      } else {
+        // Creación de estructura: new NombreStruct { val1, val2, ... }
+        StructExp *e = new StructExp(type);
+        if (!check(Token::RBRACE)) {
+          e->values.push_back(parseCE());
+          while (match(Token::COMA))
+            e->values.push_back(parseCE());
+        }
+        expect(Token::RBRACE);
+        return e;
       }
-      expect(Token::RBRACE);
-      return e;
     }
   }
 

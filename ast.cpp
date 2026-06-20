@@ -132,6 +132,20 @@ MatrixIndexExp::~MatrixIndexExp() {
 }
 
 // =============================================================================
+// MatrixValsExp
+// =============================================================================
+
+MatrixValsExp::MatrixValsExp(const std::string &t, Exp *r, Exp *c)
+    : type(t), rows(r), cols(c) {}
+
+MatrixValsExp::~MatrixValsExp() {
+  delete rows;
+  delete cols;
+  for (auto v : values)
+    delete v;
+}
+
+// =============================================================================
 // Stm
 // =============================================================================
 
