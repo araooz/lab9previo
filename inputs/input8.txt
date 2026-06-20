@@ -1,14 +1,18 @@
+struct Triangulo {
+    var int base;
+    var int altura
+};
+
+fun int area(Triangulo t)
+    return(t.base * t.altura / 2)
+endfun
+
 
 fun int main()
-    var int x,y;
-    x = 10;
-    y = 20;
-    print(x < y);
-    print(x <= y);
-    print(y > x);
-    print(y >= x);
-    print(x == y);
-    print(x != y);
+    var Triangulo tri;
+    tri = new Triangulo {};
+    tri.base = 16;
+    tri.altura = 9;
+    print(area(tri));
     return(0)
-
 endfun

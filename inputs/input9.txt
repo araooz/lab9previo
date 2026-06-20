@@ -1,12 +1,20 @@
 fun int main()
-    var int x,y,z;
-    x = 5;
-    y = 8;
-    z = 10;
-    if x < y then
-        if (y < z) && (x < z) then
-            print(1)
-        endif
-    endif;
+    var matrix m1;
+    var matrix m2;
+    var matrix resultado;
+    var int fila, columna;
+    m1 = new int[3][2] { 15, 25, 35, 45, 55, 65};
+    m2 = new int[3][2] { 9, 8, 7, 6, 5, 4};
+    resultado = new int[3][2];
+    fila = 0;
+    while fila < 3 do
+        columna = 0;
+        while columna < 2 do
+            resultado[fila][columna] = m1[fila][columna] - m2[fila][columna];
+            print(resultado[fila][columna]);
+            columna = columna + 1
+        endwhile;
+        fila = fila + 1
+    endwhile;
     return(0)
 endfun
